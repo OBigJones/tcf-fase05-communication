@@ -29,15 +29,12 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(options =>
-    {
-        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Communication API v1");
-        options.RoutePrefix = "swagger"; // agora o UI estará disponível em /swagger
-    });
-}
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Communication API v1");
+    options.RoutePrefix = "swagger"; // agora o UI estará disponível em /swagger
+});
 
 app.MapHealthChecks("/health");
 

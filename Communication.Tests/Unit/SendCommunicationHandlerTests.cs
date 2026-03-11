@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Communication.Application.UseCases.Handlers;
 using Communication.Application.UseCases.Inputs;
 using Communication.Application.Abstractions.Clients;
+using Communication.Domain.Exceptions;
 using Communication.Domain.ValueObjects;
 
 namespace Communication.Tests.Unit
@@ -49,7 +50,7 @@ namespace Communication.Tests.Unit
             var emailSenderMock = new Mock<IEmailSender>();
             var handler = new SendCommunicationHandler(emailSenderMock.Object);
 
-            await Assert.ThrowsAsync<System.Exception>(async () => await handler.HandleAsync(null!));
+            await Assert.ThrowsAsync<InvalidCommunicationException>(async () => await handler.HandleAsync(null!));
         }
     }
 }

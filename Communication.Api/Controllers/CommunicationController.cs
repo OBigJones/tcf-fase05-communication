@@ -1,10 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Communication.Api.Contracts.Requests;
 using Communication.Api.Contracts.Responses;
 using Communication.Api.Mappers;
 using Communication.Application.UseCases.Handlers;
-using Communication.Application.UseCases.Outputs;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Communication.Api.Controllers
 {

@@ -11,7 +11,7 @@ on:
 
 env:
   DOCKERHUB_PROJECT: "fase-05-communication"
-  SONAR_PROJECT_KEY: "tcf-fase05-communication"
+  SONAR_PROJECT_KEY: "obigjones_tcf-fase05-communication"
   SONAR_O: "obigjones"
 
 jobs:
@@ -37,27 +37,28 @@ jobs:
           dotnet tool install --global dotnet-sonarscanner
           dotnet tool install --global dotnet-coverage
 
-#      - name: Begin Sonar Analysis
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-#        run: |
-#          dotnet-sonarscanner begin /k:"${{ env.SONAR_PROJECT_KEY }}" /o:"${{ env.SONAR_O }}" \
-#          /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
-#          /d:sonar.host.url="https://sonarcloud.io" \
-#          /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
-#          /d:sonar.qualitygate.wait=true
+      - name: Begin Sonar Analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet-sonarscanner begin /k:"${{ env.SONAR_PROJECT_KEY }}" /o:"${{ env.SONAR_O }}" \
+          /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+          /d:sonar.host.url="https://sonarcloud.io" \
+          /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
+          /d:sonar.exclusions="**/Dockerfile,.github/workflows/**" \
+          /d:sonar.qualitygate.wait=true
 
       - name: Build and Test with Coverage
         run: |
           # O comando dotnet-coverage collect gera o XML que o Sonar espera
           dotnet-coverage collect --output coverage.xml --output-format xml dotnet test
 
-#      - name: End Sonar Analysis
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-#        run: dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+      - name: End Sonar Analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
         
   build-and-push:
     runs-on: ubuntu-latest

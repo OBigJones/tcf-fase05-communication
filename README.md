@@ -6,16 +6,18 @@ Microserviço responsável pelo envio de notificações por e-mail aos usuários
 
 ## Visão Geral
 
-O **Communication Service** tem como responsabilidade única notificar os usuários sobre o resultado do processamento de seus vídeos. Ele opera de forma **totalmente assíncrona**, consumindo mensagens da fila RabbitMQ publicadas pelo **Movie Processor Service** e enviando e-mails via SMTP (MailHog em ambiente local).
+O **Communication Service** tem como responsabilidade única notificar os usuários sobre o resultado do processamento de seus vídeos. Ele opera de forma **síncrona via API HTTP**, recebendo requisições do **BFF Service** e enviando e-mails via SMTP (MailHog em ambiente local).
 
-O serviço não gerencia estado persistente (sem banco de dados próprio) e não possui dependência síncrona com outros serviços, garantindo baixo acoplamento e alta resiliência.
+O serviço não gerencia estado persistente (sem banco de dados próprio), garantindo baixo acoplamento e alta resiliência.
+
+> **Nota arquitetural:** O código contém uma implementação de consumidor RabbitMQ (`RabbitMqConsumer` / `RabbitMqConsumerHostedService`), porém essa implementação **não está ativa no fluxo atual do sistema**. O fluxo principal de execução ocorre exclusivamente via controller HTTP.
 
 | Atributo       | Valor                                  |
 |----------------|----------------------------------------|
 | Runtime        | .NET 8 (ASP.NET Core)                  |
 | Porta HTTP     | `8086`                                 |
 | Porta HTTPS    | `9096`                                 |
-| Fila consumida | `communication_queue`                  |
+| Entrada        | HTTP API (`POST /communications/test`) |
 | SMTP           | MailHog (`localhost:1025` em dev)      |
 | Testes         | xUnit + Moq + FluentAssertions         |
 
@@ -128,12 +130,13 @@ tcf-fase05-communication/
 
 ## Responsabilidades do Serviço
 
-1. **Consumir mensagens** da fila `communication_queue` no RabbitMQ.
+1. **Receber requisições HTTP** via `POST /communications/test` originadas pelo BFF Service.
 2. **Selecionar o template** de e-mail adequado com base no resultado do processamento (`Success` ou `Failure`).
 3. **Construir o corpo do e-mail** utilizando o template de domínio correspondente.
-4. **Enviar o e-mail** via SMTP para o endereço do usuário contido na mensagem.
-5. **Confirmar (ACK)** a mensagem após processamento bem-sucedido, ou registrar o erro sem interromper o consumo.
-6. **Expor um endpoint de teste** (`POST /communications/test`) para validação manual do fluxo de envio.
+4. **Enviar o e-mail** via SMTP para o endereço do usuário informado na requisição.
+5. **Retornar confirmação** ao chamador com o resultado do envio (`sent: true/false`).
+
+> **Implementação legada (não utilizada no fluxo atual):** O serviço contém código para consumir mensagens da fila `communication_queue` no RabbitMQ (`RabbitMqConsumer`, `RabbitMqConsumerHostedService`), incluindo ACK manual após processamento. Essa implementação está presente no código, porém **não utilizada no fluxo atual do sistema**.
 
 ---
 
@@ -160,7 +163,7 @@ flowchart LR
     end
 
     subgraph Mensageria
-        MQ[(RabbitMQ\ncommunication_queue)]
+        MQ[(RabbitMQ\ncommunication_queue\nlegado / não utilizado)]
     end
 
     subgraph Notificação
@@ -175,60 +178,64 @@ flowchart LR
     MP -->|Lê vídeo| STORAGE
     MP -->|Escreve resultado| STORAGE
     VM -->|Lê resultado| STORAGE
-    MP -->|Publica evento| MQ
-    MQ -->|Consome mensagem| COMM
+    BFF -->|POST /communications/test| COMM
+    MP -.->|"publica evento (legado)"| MQ
+    MQ -.->|"consome mensagem (legado)"| COMM
     COMM -->|Envia e-mail| MAIL
     MAIL -.->|Recebido pelo| USER
 ```
 
 ### Posição no ecossistema
 
-| Serviço              | Interação com Communication Service                                              |
-|----------------------|----------------------------------------------------------------------------------|
-| **Movie Processor**  | Publica mensagem em `communication_queue` ao finalizar o processamento de vídeo  |
-| **RabbitMQ**         | Broker das mensagens assíncronas consumidas por este serviço                     |
-| **MailHog**          | Servidor SMTP local que recebe e exibe os e-mails enviados                       |
-| **BFF / outros**     | Sem integração direta — o serviço opera exclusivamente via mensageria             |
+| Serviço              | Interação com Communication Service                                                              |
+|----------------------|--------------------------------------------------------------------------------------------------|
+| **BFF Service**      | Chama `POST /communications/test` via HTTP para acionar o envio de e-mail (fluxo principal)     |
+| **MailHog**          | Servidor SMTP local que recebe e exibe os e-mails enviados                                       |
+| **RabbitMQ**         | Broker presente na infraestrutura; consumidor implementado no código, porém **não utilizado no fluxo atual** |
+| **Movie Processor**  | Publicava mensagem em `communication_queue`; integração **legada**, não ativa no fluxo atual    |
 
 ---
 
 ## Fluxo de Requisições
 
-### Fluxo assíncrono (principal)
+### Fluxo HTTP (principal)
+
+```
+BFF Service
+    → HTTP POST /communications/test  { email, fileName, status }
+        → CommunicationController
+            → CommunicationMapper.ToInput() → SendCommunicationInput
+                → SendCommunicationHandler.HandleAsync()
+                    → seleciona SuccessCommunicationTemplate ou FailureCommunicationTemplate
+                        → template.BuildBody(fileName)
+                            → cria EmailMessage (value object)
+                                → IEmailSender.SendAsync(EmailMessage)
+                                    → SmtpEmailSender → MailHog (SMTP)
+                                        → 200 OK { sent: true, message: "Email sent" }
+```
+
+### Fluxo via mensageria (legado — implementação presente no código, porém não utilizada no fluxo atual)
 
 ```
 Movie Processor
     → publica VideoProcessingResultMessage em communication_queue (RabbitMQ)
-        → RabbitMqConsumerHostedService (IHostedService)
+        → RabbitMqConsumerHostedService (IHostedService)  [INATIVO]
             → RabbitMqConsumer.OnMessageReceivedAsync()
                 → deserializa VideoProcessingResultMessage
                     → SendCommunicationHandler.HandleAsync(SendCommunicationInput)
-                        → seleciona SuccessCommunicationTemplate ou FailureCommunicationTemplate
-                            → template.BuildBody(fileName)
-                                → cria EmailMessage (value object)
-                                    → IEmailSender.SendAsync(EmailMessage)
-                                        → SmtpEmailSender → MailHog (SMTP)
-                                            → BasicAckAsync (confirma mensagem)
-```
-
-### Fluxo síncrono (endpoint de teste)
-
-```
-HTTP POST /communications/test  { email, fileName, status }
-    → CommunicationController
-        → CommunicationMapper.ToInput() → SendCommunicationInput
-            → SendCommunicationHandler.HandleAsync()
-                → (mesmo fluxo de template e envio acima)
-                    → 200 OK { sent: true, message: "Email sent" }
+                        → (mesmo fluxo de template e envio acima)
+                            → BasicAckAsync (confirma mensagem)
 ```
 
 ---
 
 ## Comunicação Assíncrona
 
-### Consumo de mensagens
+> **Atenção:** A implementação de mensageria descrita nesta seção está **presente no código, porém não utilizada no fluxo atual do sistema**. O fluxo ativo é exclusivamente via HTTP API (ver seção [Fluxo de Requisições](#fluxo-de-requisições)).
 
-O serviço **consome** mensagens da fila `communication_queue`. Não publica eventos.
+### Consumo de mensagens (legado — não ativo)
+
+O código contém uma implementação para **consumir** mensagens da fila `communication_queue`. Não publica eventos. Essa implementação não está ativada no fluxo atual.
 
 | Atributo       | Valor                      |
 |----------------|----------------------------|
@@ -239,7 +246,7 @@ O serviço **consome** mensagens da fila `communication_queue`. Não publica eve
 | Auto-ack       | `false` (ACK manual)       |
 | Binding        | Direto (sem exchange)      |
 
-### Formato da mensagem consumida
+### Formato da mensagem (legado)
 
 ```json
 {

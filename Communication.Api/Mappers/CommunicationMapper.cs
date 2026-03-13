@@ -11,7 +11,7 @@ namespace Communication.Api.Mappers
             {
                 Email = request.Email,
                 FileName = request.FileName,
-                Success = string.Equals(request.Status, "Success", System.StringComparison.OrdinalIgnoreCase)
+                Success = string.Equals(request.Status, "Finished", System.StringComparison.OrdinalIgnoreCase)
             };
         }
     }

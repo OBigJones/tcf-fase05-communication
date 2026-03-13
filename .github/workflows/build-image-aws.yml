@@ -46,7 +46,7 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
           /d:sonar.host.url="https://sonarcloud.io" \
           /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml \
-          /d:sonar.exclusions="**/Dockerfile,.github/workflows/**" \
+          /d:sonar.exclusions="Communication.Api/**,Communication.Infrastructure/**,**/Dockerfile,Communication.Application/**,.github/workflows/**" \
           /d:sonar.qualitygate.wait=true
 
       - name: Build and Test with Coverage

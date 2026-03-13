@@ -452,12 +452,13 @@ Communication.Tests/
 
 ## Workflow de Branches
 
-| Branch      | Finalidade                                                        |
-|-------------|-------------------------------------------------------------------|
-| `main`      | Código estável, pronto para produção                              |
-| `develop`   | Branch de integração das features em desenvolvimento              |
-| `feature/*` | Desenvolvimento de novas funcionalidades                          |
-| `fix/*`     | Correção de bugs                                                  |
-| `hotfix/*`  | Correções críticas aplicadas diretamente sobre `main`             |
+O repositório segue o modelo **Git Flow**:
 
-O merge para `main` deve ocorrer via Pull Request com revisão de código. O CI/CD deve executar os testes automatizados antes de qualquer merge.
+| Branch | Finalidade |
+|---|---|
+| `main` | Código de produção. Código protegido — merge apenas via Pull Request aprovado. |
+| `develop` | Branch de desenvolvimento contínuo. Base para features. |
+| `release/*` | Preparação de releases (`release/v1.0.0`). |
+| `feature/*` | Desenvolvimento de novas funcionalidades (não monitorada pelo CI diretamente). |
+
+O pipeline de CI é acionado em Pull Requests e pushes para `main`, `develop` e `release/*`. A publicação da imagem Docker ocorre apenas em pushes diretos para `main` e `develop`.

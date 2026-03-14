@@ -455,7 +455,7 @@ Communication.Tests/
 ├── Integration/                            # Estrutura preparada para testes de integração
 └── Fixtures/                               # Fixtures compartilhadas entre testes
 ```
-
+![Evidencia Sonar](image.png)
 ---
 
 ## Workflow de Branches
